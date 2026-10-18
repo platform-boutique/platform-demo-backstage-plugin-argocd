@@ -4,7 +4,7 @@ import { ArgoCdService } from './service';
 
 /**
  * Backend of the Deployments view. It has no Argo CD credential: it forwards the signed-in person's Dex ID token, so Argo CD's RBAC
- * decides what that person sees (and, in later stages, may change) and its history names them. Argo CD must list this portal's OIDC
+ * decides what that person sees. Argo CD must list this portal's OIDC
  * client in `oidc.config.allowedAudiences`.
  *
  * @public

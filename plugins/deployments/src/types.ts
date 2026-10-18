@@ -50,7 +50,3 @@ export interface ResourceNode {
   parent?: string;
   images: string[];
 }
-
-export interface Permissions {
-  sync: boolean;
-}

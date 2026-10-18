@@ -10,7 +10,6 @@ export const ID_TOKEN_HEADER = 'x-dex-id-token';
 
 export async function createRouter(o: { httpAuth: HttpAuthService; service: ArgoCdService }): Promise<express.Router> {
   const router = Router();
-  router.use(express.json());
   router.use(async (req, _res, next) => {
     await o.httpAuth.credentials(req, { allow: ['user'] });
     next();
@@ -34,38 +33,6 @@ export async function createRouter(o: { httpAuth: HttpAuthService; service: Argo
   router.get('/applications/:name/resources', async (req, res) => {
     const { name, token } = target(req);
     res.json({ resources: await o.service.resources(name, token) });
-  });
-
-  /** GET /applications/:name/permissions : what Argo CD allows this person to do (decides which buttons are enabled). */
-  router.get('/applications/:name/permissions', async (req, res) => {
-    const { name, token } = target(req);
-    res.json(await o.service.permissions(name, token));
-  });
-
-  const flag = (v: unknown, field: string) => {
-    if (v === undefined) return false;
-    if (typeof v !== 'boolean') throw new InputError(`${field} must be true or false`);
-    return v;
-  };
-
-  /** POST /applications/:name/refresh {hard?} */
-  router.post('/applications/:name/refresh', async (req, res) => {
-    const { name, token } = target(req);
-    res.json(await o.service.refresh(name, token, flag(req.body?.hard, 'hard')));
-  });
-
-  /** POST /applications/:name/sync {prune?, dryRun?} : sync to what the Application follows. */
-  router.post('/applications/:name/sync', async (req, res) => {
-    const { name, token } = target(req);
-    res.json(await o.service.sync(name, token, { prune: flag(req.body?.prune, 'prune'), dryRun: flag(req.body?.dryRun, 'dryRun') }));
-  });
-
-  /** POST /applications/:name/rollback {id, prune?, dryRun?} : redeploy a revision of the history. */
-  router.post('/applications/:name/rollback', async (req, res) => {
-    const { name, token } = target(req);
-    const id = req.body?.id;
-    if (!Number.isInteger(id) || id < 0) throw new InputError('id must be a history id (a whole number)');
-    res.json(await o.service.rollback(name, token, { id, prune: flag(req.body?.prune, 'prune'), dryRun: flag(req.body?.dryRun, 'dryRun') }));
   });
 
   return router;
