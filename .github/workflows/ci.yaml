@@ -1,0 +1,25 @@
+name: CI
+
+# Pull-request gate. Nothing runs on a plain push. Type check, build and pack are run by hand today (README, "Develop");
+# a shared `backstage-plugin-ci` workflow in platform-demo-workflows is the planned replacement.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    permissions:
+      contents: read
+    uses: platform-boutique/platform-demo-workflows/.github/workflows/secret-scan.yaml@28d80c1d4abd81c1529bf593a874640132692e8a # v2.0.2
+
+  workflows:
+    permissions:
+      contents: read
+    uses: platform-boutique/platform-demo-workflows/.github/workflows/workflow-lint.yaml@28d80c1d4abd81c1529bf593a874640132692e8a # v2.0.2

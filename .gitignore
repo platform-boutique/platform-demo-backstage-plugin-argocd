@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-types/
+dist-pack/
+.yarn/*
+!.yarn/releases
+!.yarn/patches
+*.log
+.env*
+coverage/

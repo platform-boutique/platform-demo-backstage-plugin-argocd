@@ -1,0 +1,45 @@
+{
+  "name": "platform-demo-backstage-plugin-argocd",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "22 || 24"
+  },
+  "workspaces": [
+    "plugins/*"
+  ],
+  "scripts": {
+    "build": "backstage-cli repo build --all",
+    "tsc": "tsc",
+    "test": "backstage-cli repo test",
+    "lint": "backstage-cli repo lint",
+    "new": "backstage-cli new"
+  },
+  "backstage": {
+    "cli": {
+      "new": {
+        "globals": {
+          "license": "Apache-2.0"
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@backstage/cli": "^0.36.6",
+    "@backstage/cli-defaults": "^0.1.6",
+    "@jest/environment-jsdom-abstract": "~30.2.0",
+    "@types/jest": "^30.0.0",
+    "jest": "~30.2.0",
+    "jsdom": "^27.1.0",
+    "prettier": "^2.3.2",
+    "typescript": "~5.8.0"
+  },
+  "resolutions": {
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "got": "npm:11.8.6",
+    "@types/express-serve-static-core": "^4.19.0"
+  },
+  "prettier": "@backstage/cli/config/prettier",
+  "packageManager": "yarn@4.13.0"
+}

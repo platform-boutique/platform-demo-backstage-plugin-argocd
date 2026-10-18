@@ -1,0 +1,19 @@
+version: 2
+multi-ecosystem-groups:
+  dependencies:
+    schedule:
+      interval: monthly
+updates:
+  # The Backstage packages move together and are bumped as a whole with `yarn backstage-cli versions:bump` (README, "Upgrading").
+  - package-ecosystem: github-actions
+    directory: /
+    multi-ecosystem-group: dependencies
+    patterns: ["*"]
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"

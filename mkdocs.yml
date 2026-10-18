@@ -1,0 +1,16 @@
+site_name: Backstage plugin - Deployments
+site_description: Argo CD deployments for the platform-demo portal.
+repo_url: https://github.com/platform-boutique/platform-demo-backstage-plugin-argocd
+edit_uri: edit/main/docs/
+nav:
+  - Overview: index.md
+  - How it works: how-it-works.md
+  - Install and configure: install.md
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+plugins:
+  - techdocs-core

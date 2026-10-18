@@ -1,0 +1,20 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: platform-demo-backstage-plugin-argocd
+  title: Backstage plugin - Deployments (Argo CD)
+  description: "What Argo CD runs for a service and, step by step, the controls to refresh, sync and roll back, acting as the signed-in person."
+  annotations:
+    github.com/project-slug: platform-boutique/platform-demo-backstage-plugin-argocd
+    backstage.io/source-location: url:https://github.com/platform-boutique/platform-demo-backstage-plugin-argocd/tree/main/
+    backstage.io/techdocs-ref: dir:.
+  tags: [backstage, plugin, argocd, gitops]
+spec:
+  type: backstage-plugin
+  lifecycle: experimental
+  owner: group:default/maintainers
+  system: developer-portal
+  subcomponentOf: component:default/platform-demo-backstage
+  dependsOn:
+    - resource:default/argocd
+    - resource:default/dex
