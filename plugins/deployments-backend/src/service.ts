@@ -44,7 +44,7 @@ export class ArgoCdService {
   async permissions(name: string, idToken: string): Promise<Permissions> {
     const app = await this.application(name, idToken);
     const can = async (action: string) =>
-      (await this.call(`/account/can-i/${action}/applications/${encodeURIComponent(app.project)}/${encodeURIComponent(name)}`, idToken)).value === 'yes';
+      (await this.call(`/account/can-i/applications/${action}/${encodeURIComponent(`${app.project}/${name}`)}`, idToken)).value === 'yes';
     return { sync: await can('sync') };
   }
 

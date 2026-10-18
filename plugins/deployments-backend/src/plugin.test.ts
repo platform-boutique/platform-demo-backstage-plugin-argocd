@@ -146,6 +146,6 @@ describe('actions', () => {
     fetchMock.mockResolvedValueOnce(ok()).mockResolvedValueOnce(new Response(JSON.stringify({ value: 'no' }), { status: 200 }));
     const res = await request(await app()).get('/api/deployments/applications/dev-dex/permissions').set('x-dex-id-token', 'P');
     expect(res.body).toEqual({ sync: false });
-    expect(fetchMock.mock.calls[1][0]).toBe('http://argo.test/api/v1/account/can-i/sync/applications/platform/dev-dex');
+    expect(fetchMock.mock.calls[1][0]).toBe('http://argo.test/api/v1/account/can-i/applications/sync/platform%2Fdev-dex');
   });
 });
