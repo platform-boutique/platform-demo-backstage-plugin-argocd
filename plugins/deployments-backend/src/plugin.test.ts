@@ -93,59 +93,19 @@ describe('deployments backend', () => {
   });
 });
 
-describe('actions', () => {
+describe('read-only', () => {
   const fetchMock = jest.spyOn(global, 'fetch');
   afterEach(() => fetchMock.mockReset());
-  async function app() {
+
+  it('has no route that changes anything in Argo CD', async () => {
     const { server } = await startTestBackend({
       features: [deploymentsPlugin, mockServices.rootConfig.factory({ data: { deployments: { argocdUrl: 'http://argo.test' } } })],
     });
-    return server;
-  }
-  const ok = () => new Response(JSON.stringify(APP), { status: 200 });
-
-  it('syncs with the person\'s token and only the allowed options', async () => {
-    fetchMock.mockResolvedValue(ok());
-    const res = await request(await app()).post('/api/deployments/applications/dev-dex/sync').set('x-dex-id-token', 'P').send({ prune: true, dryRun: false, revision: 'evil' });
-    expect(res.status).toBe(200);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('http://argo.test/api/v1/applications/dev-dex/sync');
-    expect(init.method).toBe('POST');
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer P');
-    expect(JSON.parse(init.body as string)).toEqual({ prune: true, dryRun: false });
-  });
-
-  it('refreshes softly or hard', async () => {
-    fetchMock.mockResolvedValue(ok());
-    await request(await app()).post('/api/deployments/applications/dev-dex/refresh').set('x-dex-id-token', 'P').send({ hard: true });
-    expect(fetchMock.mock.calls[0][0]).toBe('http://argo.test/api/v1/applications/dev-dex?refresh=hard');
-  });
-
-  it('rolls back to a history id and rejects anything else', async () => {
-    fetchMock.mockResolvedValue(ok());
-    const s = await app();
-    const good = await request(s).post('/api/deployments/applications/dev-dex/rollback').set('x-dex-id-token', 'P').send({ id: 3 });
-    expect(good.status).toBe(200);
-    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({ name: 'dev-dex', id: 3, prune: false, dryRun: false });
-    fetchMock.mockClear();
-    for (const body of [{}, { id: '3' }, { id: -1 }, { id: 1.5 }]) {
-      expect((await request(s).post('/api/deployments/applications/dev-dex/rollback').set('x-dex-id-token', 'P').send(body)).status).toBe(400);
+    for (const path of ['sync', 'refresh', 'rollback', 'permissions']) {
+      const res = await request(server).post(`/api/deployments/applications/dev-dex/${path}`).set('x-dex-id-token', 'P').send({ id: 1 });
+      expect(res.status).toBe(404);
     }
-    expect((await request(s).post('/api/deployments/applications/dev-dex/sync').set('x-dex-id-token', 'P').send({ prune: 'yes' })).status).toBe(400);
+    expect((await request(server).delete('/api/deployments/applications/dev-dex').set('x-dex-id-token', 'P')).status).toBe(404);
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('passes on Argo CD\'s own explanation when it refuses (rollback with auto-sync)', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ message: 'rollback cannot be initiated when auto-sync is enabled' }), { status: 400 }));
-    const res = await request(await app()).post('/api/deployments/applications/dev-dex/rollback').set('x-dex-id-token', 'P').send({ id: 1 });
-    expect(res.status).toBe(400);
-    expect(res.body.error.message).toContain('auto-sync is enabled');
-  });
-
-  it('asks Argo CD what the person may do', async () => {
-    fetchMock.mockResolvedValueOnce(ok()).mockResolvedValueOnce(new Response(JSON.stringify({ value: 'no' }), { status: 200 }));
-    const res = await request(await app()).get('/api/deployments/applications/dev-dex/permissions').set('x-dex-id-token', 'P');
-    expect(res.body).toEqual({ sync: false });
-    expect(fetchMock.mock.calls[1][0]).toBe('http://argo.test/api/v1/account/can-i/applications/sync/platform%2Fdev-dex');
   });
 });

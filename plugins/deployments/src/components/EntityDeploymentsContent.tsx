@@ -1,30 +1,10 @@
-import { useEffect, useState } from 'react';
-import { alertApiRef, useApi } from '@backstage/frontend-plugin-api';
+import { configApiRef, useApi } from '@backstage/frontend-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { InfoCard, Link, MissingAnnotationEmptyState, Progress, ResponseErrorPanel } from '@backstage/core-components';
-import {
-  Button,
-  Checkbox,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  FormControlLabel,
-  Grid,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Tooltip,
-  Typography,
-  makeStyles,
-} from '@material-ui/core';
+import { Chip, Grid, Table, TableBody, TableCell, TableHead, TableRow, Typography, makeStyles } from '@material-ui/core';
 import useAsync from 'react-use/esm/useAsync';
 import { deploymentsApiRef } from '../api';
-import { DeploymentApp, HistoryEntry, ResourceNode } from '../types';
+import { DeploymentApp, ResourceNode } from '../types';
 
 const APP = 'argocd/app-name';
 
@@ -35,7 +15,6 @@ const useStyles = makeStyles(theme => ({
   sub: { fontSize: '0.8rem', opacity: 0.75, marginTop: 4 },
   chip: { fontWeight: 600, height: 22, color: '#fff' },
   mono: { fontFamily: 'monospace', fontSize: '0.8rem' },
-  bar: { display: 'flex', gap: theme.spacing(1), flexWrap: 'wrap', alignItems: 'center' },
   nowrap: { whiteSpace: 'nowrap' },
 }));
 
@@ -70,108 +49,31 @@ const commitUrl = (app: DeploymentApp, rev: string) => {
   return m && rev ? `https://github.com/${m[1]}/commit/${rev}` : undefined;
 };
 
-type Pending = { kind: 'sync' } | { kind: 'rollback'; entry: HistoryEntry };
-
+/** Read-only: what Argo CD runs and has deployed. Syncing and rolling back are done in Argo CD (link) or by a revert in Git. */
 export function EntityDeploymentsContent() {
   const c = useStyles();
   const { entity } = useEntity();
   const api = useApi(deploymentsApiRef);
-  const alerts = useApi(alertApiRef);
+  const argoUi = useApi(configApiRef).getOptionalString('argocd.baseUrl');
   const name = entity.metadata.annotations?.[APP];
-  const [tick, setTick] = useState(0);
-  const [pending, setPending] = useState<Pending>();
-  const [prune, setPrune] = useState(false);
-  const [dryRun, setDryRun] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const state = useAsync(async () => {
     if (!name) return undefined;
-    const [app, resources, permissions] = await Promise.all([api.application(name), api.resources(name), api.permissions(name)]);
-    return { app, resources, permissions };
-  }, [name, tick]);
-
-  // While Argo CD is working on an operation, look again every few seconds (at most a couple of minutes).
-  const running = state.value?.app.operation?.phase === 'Running';
-  useEffect(() => {
-    if (!running) return undefined;
-    const t = setTimeout(() => setTick(x => x + 1), 3000);
-    return () => clearTimeout(t);
-  }, [running, tick]);
+    const [app, resources] = await Promise.all([api.application(name), api.resources(name)]);
+    return { app, resources };
+  }, [name]);
 
   if (!name) return <MissingAnnotationEmptyState annotation={APP} />;
-  if (state.loading && !state.value) return <Progress />;
-  if (state.error && !state.value) return <ResponseErrorPanel error={state.error} />;
-  const { app, resources, permissions } = state.value!;
+  if (state.loading) return <Progress />;
+  if (state.error) return <ResponseErrorPanel error={state.error} />;
+  const { app, resources } = state.value!;
   const mode = app.autoSync.enabled
     ? `automatic${app.autoSync.prune ? ', prune' : ''}${app.autoSync.selfHeal ? ', self-heal' : ''}`
     : 'manual';
   const rows = [...resources].sort((a, b) => worst(a) - worst(b) || a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
-  const noRights = 'Argo CD does not let you change this application (members of platform-boutique:maintainers can).';
-
-  const run = async (what: string, action: () => Promise<unknown>) => {
-    setBusy(true);
-    try {
-      await action();
-      alerts.post({ message: `${what}: Argo CD accepted it.`, severity: 'success', display: 'transient' });
-    } catch (e) {
-      alerts.post({ message: `${what} failed: ${(e as Error).message}`, severity: 'error', display: 'permanent' });
-    } finally {
-      setBusy(false);
-      setPending(undefined);
-      setTick(x => x + 1);
-    }
-  };
-
-  const confirm = () => {
-    if (!pending) return;
-    const o = { prune, dryRun };
-    if (pending.kind === 'sync') run(dryRun ? 'Dry-run sync' : 'Sync', () => api.sync(name, o));
-    else run(`${dryRun ? 'Dry-run rollback' : 'Rollback'} to #${pending.entry.id}`, () => api.rollback(name, pending.entry.id, o));
-  };
-
-  const open = (p: Pending) => {
-    setPrune(false);
-    setDryRun(false);
-    setPending(p);
-  };
-
-  const rb = pending?.kind === 'rollback' ? pending.entry : undefined;
-  const verb = rb ? 'Roll back' : 'Sync';
-  const confirmLabel = dryRun ? 'Dry run' : verb;
-  const dialogText = rb
-    ? `Redeploys revision ${short(rb.revision)} (live now: ${short(app.revision)}). Argo CD records you as the one who did it.`
-    : `Applies what ${app.targetRevision ?? 'Git'} declares (${app.path ?? ''}) to ${app.destination.namespace}. Argo CD records you as the one who did it.`;
-
-  const rollbackBlock = (h: HistoryEntry) => {
-    if (!permissions.sync) return noRights;
-    if (app.autoSync.enabled)
-      return 'Automatic sync is on: Argo CD refuses rollbacks and self-heal would put Git back. Revert the commit in Git instead.';
-    if (h.revision === app.revision) return 'This is the revision that is live.';
-    return undefined;
-  };
 
   return (
     <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <div className={c.bar}>
-          <Button variant="outlined" size="small" disabled={busy} onClick={() => run('Refresh', () => api.refresh(name, false))}>
-            Refresh
-          </Button>
-          <Button variant="outlined" size="small" disabled={busy} onClick={() => run('Hard refresh', () => api.refresh(name, true))}>
-            Hard refresh
-          </Button>
-          <Tooltip title={permissions.sync ? '' : noRights}>
-            <span>
-              <Button variant="contained" color="primary" size="small" disabled={busy || !permissions.sync || running} onClick={() => open({ kind: 'sync' })}>
-                Sync
-              </Button>
-            </span>
-          </Tooltip>
-          {running && <Typography variant="body2">An operation is running ...</Typography>}
-          {state.loading && <Typography variant="body2">updating ...</Typography>}
-        </div>
-      </Grid>
-
       <Grid item xs={6} md={3}>
         <div className={c.stat}>
           <div className={c.label}>Health</div>
@@ -197,7 +99,10 @@ export function EntityDeploymentsContent() {
         <div className={c.stat}>
           <div className={c.label}>Sync policy</div>
           <div className={c.value}>{mode}</div>
-          <div className={c.sub}>project {app.project}</div>
+          <div className={c.sub}>
+            project {app.project}
+            {argoUi && <> · <Link to={`${argoUi}/applications/argocd/${encodeURIComponent(app.name)}`}>Open in Argo CD</Link></>}
+          </div>
         </div>
       </Grid>
 
@@ -225,17 +130,18 @@ export function EntityDeploymentsContent() {
       )}
 
       <Grid item xs={12}>
-        <InfoCard title="History" subheader="Deployments, newest first. Rollback redeploys that revision; with automatic sync on, revert the commit in Git." noPadding>
+        <InfoCard
+          title="History"
+          subheader="Deployments, newest first. To go back, revert the commit in Git (automatic sync would undo anything else); Argo CD can also roll back."
+          noPadding
+        >
           <Table size="small">
             <TableHead>
-              <TableRow>
-                <TableCell>#</TableCell><TableCell>Revision</TableCell><TableCell>Deployed</TableCell><TableCell>By</TableCell><TableCell />
-              </TableRow>
+              <TableRow><TableCell>#</TableCell><TableCell>Revision</TableCell><TableCell>Deployed</TableCell><TableCell>By</TableCell></TableRow>
             </TableHead>
             <TableBody>
               {app.history.map(h => {
                 const url = commitUrl(app, h.revision);
-                const block = rollbackBlock(h);
                 return (
                   <TableRow key={h.id} hover>
                     <TableCell>{h.id}</TableCell>
@@ -245,19 +151,10 @@ export function EntityDeploymentsContent() {
                     </TableCell>
                     <TableCell className={c.nowrap}>{when(h.deployedAt)}</TableCell>
                     <TableCell>{h.automated ? 'automation' : h.initiatedBy ?? '-'}</TableCell>
-                    <TableCell align="right">
-                      <Tooltip title={block ?? ''}>
-                        <span>
-                          <Button size="small" variant="outlined" disabled={busy || Boolean(block)} onClick={() => open({ kind: 'rollback', entry: h })}>
-                            Rollback
-                          </Button>
-                        </span>
-                      </Tooltip>
-                    </TableCell>
                   </TableRow>
                 );
               })}
-              {app.history.length === 0 && <TableRow><TableCell colSpan={5}>No deployments recorded yet.</TableCell></TableRow>}
+              {app.history.length === 0 && <TableRow><TableCell colSpan={4}>No deployments recorded yet.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </InfoCard>
@@ -289,22 +186,6 @@ export function EntityDeploymentsContent() {
           </InfoCard>
         </Grid>
       )}
-
-      <Dialog open={Boolean(pending)} onClose={() => !busy && setPending(undefined)}>
-        <DialogTitle>{rb ? `Roll back ${app.name} to #${rb.id}?` : `Sync ${app.name}?`}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{dialogText}</DialogContentText>
-          <FormControlLabel control={<Checkbox checked={prune} onChange={e => setPrune(e.target.checked)} />} label="Prune: delete objects that are no longer in Git" />
-          <br />
-          <FormControlLabel control={<Checkbox checked={dryRun} onChange={e => setDryRun(e.target.checked)} />} label="Dry run: check only, change nothing" />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPending(undefined)} disabled={busy}>Cancel</Button>
-          <Button color="primary" variant="contained" onClick={confirm} disabled={busy}>
-            {confirmLabel}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Grid>
   );
 }
